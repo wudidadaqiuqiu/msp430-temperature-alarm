@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "*.c": "c",
+        "paper_display.h": "c",
+        "debug.h": "c",
+        "stdio.h": "c",
+        "dev_config.h": "c",
+        "adc.h": "c",
+        "epd_2in9.h": "c",
+        "include.h": "c"
+    }
+}
