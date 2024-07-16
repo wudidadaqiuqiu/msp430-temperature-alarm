@@ -149,6 +149,9 @@ void Init_buff(void)
 	int i;
 	for(i=0;i<4000;i++)
 	{
+		if (i < sizeof(gImage_a))
+		DisBuffer[i] = gImage_a[i];
+		else
 		DisBuffer[i]=0;
 	}
 
