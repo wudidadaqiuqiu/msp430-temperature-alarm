@@ -59,6 +59,13 @@ void timer_init()
     TB0CCR0 = Period;                    // PWM Period
     TB0CCTL2 = OUTMOD_7;                // CCR3 toggle/set
     TB0CCR2 = 0;                    // CCR3 PWM duty cycle  0
+
+    TA0CTL = MC_1 + TASSEL_2 + TACLR ;  // SMCLK(8M), up mode, clear TAR
+    TA0CCR0 = Period;                    // PWM Period
+    TA0CCTL1 = OUTMOD_7;                // CCR3 toggle/set
+    TA0CCR1 = 0;                    // CCR3 PWM duty cycle  0
+
+    
 }
 
 
@@ -74,7 +81,7 @@ void IO_Init(void)
     PIN_OUT_SEL(7,4);
     
     // 1.4 buzzer -> 3.6
-    PIN_OUT_SEL(1,4);
+    PIN_OUT_SEL(1,2);
 
     //·çÉÈÇý¶¯
     P1DIR |= BIT5;
@@ -211,7 +218,7 @@ __interrupt void Timer_A (void)
     }
 
     static int cnt;
-    cnt = (cnt + 1) % 2;
+    cnt = (cnt + 1) % 16;
     if (cnt == 0) {
         buzzer_update();
     }
