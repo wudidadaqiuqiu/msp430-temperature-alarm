@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "adc.h"
 #include "key.h"
+#include "buzzer.h"
 // #include "Include.h"
 // #include "../Paper_Display.h"
 #include "Paper_Display.h"
@@ -71,6 +72,9 @@ void IO_Init(void)
     
     // 7.4 L3 TB0.2
     PIN_OUT_SEL(7,4);
+    
+    // 1.4 buzzer -> 3.6
+    PIN_OUT_SEL(1,4);
 
     //·çÉÈÇý¶¯
     P1DIR |= BIT5;
@@ -106,7 +110,7 @@ int main(void) {
     initClock();
 
     timer_init();
-    
+    buzzer_init();
 
     PaperIO_Int();
 
@@ -168,10 +172,12 @@ __interrupt void Timer_A (void)
         } else {
             M = calc_mode(tem);
         }
+        buzzer_start();
     } else {
         M = 0;
         // DUTY = Period;
         PIN_LOW(1,5);
+        buzzer_stop();
     }
 
     sprintf(number, "%-4d", tem);
@@ -204,6 +210,11 @@ __interrupt void Timer_A (void)
         LED_DUTY += step * r;
     }
 
+    static int cnt;
+    cnt = (cnt + 1) % 2;
+    if (cnt == 0) {
+        buzzer_update();
+    }
 }
 
 
