@@ -22,7 +22,8 @@ uint32_t tem;
 uint8_t enable_change_mode = 0;
 uint8_t modes = 0;
 
-
+int calc_mode(int tem);
+float calc_fre(int tem);
 void initClock()
 {
 	 UCSCTL6 &= ~XT1OFF; //启动XT1
@@ -42,6 +43,7 @@ void initClock()
 }
 
 #define DUTY TA2CCR1
+#define LED_DUTY TB0CCR2
 unsigned int Period=50000; // 50ms
 int step = 200;
 void timer_init()
@@ -52,13 +54,13 @@ void timer_init()
     TA2CCR1 = 0;                    // CCR3 PWM duty cycle  0
     TA2CCTL0 = CCIE;                        //比较器中断使能
 
-    
+    TB0CTL = MC_1 + TASSEL_2 + TACLR ;  // SMCLK(8M), up mode, clear TAR
+    TB0CCR0 = Period;                    // PWM Period
+    TB0CCTL2 = OUTMOD_7;                // CCR3 toggle/set
+    TB0CCR2 = 0;                    // CCR3 PWM duty cycle  0
 }
 
-#define PIN_HIGH(a, b) P##a##OUT |= BIT##b
-#define PIN_LOW(a, b) P##a##OUT &= ~BIT##b
 
-#define IS_PIN_HIGH(a, b) (P##a##IN & BIT##b)
 void IO_Init(void)
 {
 
@@ -67,6 +69,8 @@ void IO_Init(void)
     PULL_UP_INT(2,1);
     PULL_UP_INT(1,1);
     
+    // 7.4 L3 TB0.2
+    PIN_OUT_SEL(7,4);
 
     //风扇驱动
     P1DIR |= BIT5;
@@ -110,8 +114,8 @@ int main(void) {
     // paper_init();
     Init_buff();
 
-    display("tem:", 8, 16, TimesNewRoman,size8,1,0);
-    display("M O D E:", 8, 32, TimesNewRoman,size8,1,0);
+    // display("tem:", 8, 16, TimesNewRoman,size8,1,0);
+    // display("M O D E:", 8, 32, TimesNewRoman,size8,1,0);
     DIS_IMG(1);
     __enable_interrupt();
     // DIS_IMG(254);
@@ -145,74 +149,60 @@ int main(void) {
 }
 
 
-
+#define XX 50
 #pragma vector=TIMER2_A0_VECTOR
 __interrupt void Timer_A (void)
 {
     static char str1[10];
     static char str2[10]; 
+    static int M;
     tem = get_temperature();
-    sprintf(number, "%-4d", tem);
-    display(number, 100, 16, TimesNewRoman, size8, 1, 0);
-    
-    sprintf(str1, "%-4d", enable_change_mode);
-    display(str1, 100, 16 + 16, TimesNewRoman, size8, 1, 0);
 
-
-    // 
-    // if (!IS_PIN_HIGH(2,1)) {
-    //     enable_change_mode
-    // }
     if (tem > 2000) {
         PIN_HIGH(1,5);
         DUTY = Period / 3 - Period / 3 * (float)(tem - 2000) / (float)(4095 - 2000);
         if (enable_change_mode) {
             DUTY = Period / 3 * (MODE_NUMBER - (float) modes) / (float) MODE_NUMBER;
+
+            M = modes + 1;
+        } else {
+            M = calc_mode(tem);
         }
-        // DUTY = Period / 2;
-        // DUTY = Period;
     } else {
+        M = 0;
         // DUTY = Period;
         PIN_LOW(1,5);
     }
-//       static int up = 0;
-//       if (DUTY >= Period)
-//       {
-//           up = 0;
-//       }
-//
-//       else if (DUTY == 0)
-//       {
-//           up = 1;
-//       }
-//
-//
-//       if ((P2IN & BIT1) == 0)
-//       {
-//           up = 1;
-//       }
-//       if ((P1IN & BIT1) == 0)
-//       {
-//           up = 0;
-//       }
-//       if (DUTY >= Period)
-//       {
-//           if (up != 0) DUTY = 0;
-//       }
-//       else if (DUTY == 0)
-//       {
-//           if (up != 1) DUTY = Period;
-//       }
-//
-//
-//       if (up == 0)
-//       {
-//           DUTY -= step;
-//       }
-//       else
-//       {
-//           DUTY += step;
-//       }
+
+    sprintf(number, "%-4d", tem);
+    display(number, XX, 16, TimesNewRoman, size8, 1, 0);
+    
+    sprintf(str1, "%-4d", enable_change_mode);
+    display(str1, XX, 16 + 16, TimesNewRoman, size8, 1, 0);
+
+    sprintf(str2, "%d", M);
+    display(str2, XX, 48, TimesNewRoman, size8, 1, 0);
+    
+
+    static int up = 0;
+
+    static float r;
+    r = calc_fre(tem);
+    if (r < 1) {
+        LED_DUTY = 0;
+        return;
+    }
+
+    if ((float)LED_DUTY - step * r <= 0) {
+        up = 1;
+    } else if ((float)LED_DUTY + step * r >= Period) {
+        up = 0;
+    }
+    if (up == 0) {
+        LED_DUTY -= step * r;
+    } else {
+        LED_DUTY += step * r;
+    }
 
 }
 
@@ -220,7 +210,7 @@ __interrupt void Timer_A (void)
 #pragma vector=PORT2_VECTOR
 __interrupt void Port_2(void)
 {
-    if(IS_PIN_HIGH(2,1)){
+    if(IS_PIN_LOW(2,1)){
         INT_IN(2,1);
         enable_change_mode = !enable_change_mode;
 
@@ -232,9 +222,27 @@ __interrupt void Port_2(void)
 #pragma vector=PORT1_VECTOR
 __interrupt void Port_1(void)
 {
-    if(IS_PIN_HIGH(1,1)){
+    if(IS_PIN_LOW(1,1)){
         INT_IN(1,1);
         modes = (modes + 1) % MODE_NUMBER;
     }
 
+}
+
+int calc_mode(int tem) {
+    if (tem <= 2000) {
+        return 0; 
+    }
+    if (tem < 2600) {
+        return 1;
+    }
+    if (tem < 3200) {
+        return 2;
+    }
+    return 3;
+}
+
+float calc_fre(int tem) {
+    if (tem <= 2000) return 0;
+    return 4 * (tem - 2000.0) / (4095 - 2000) + 1;
 }
