@@ -16,3 +16,8 @@
 #define IS_PIN_LOW(a, b) (!(P##a##IN & BIT##b))
 
 #define PIN_OUT_SEL(a, b) P##a##DIR |= BIT##b; P##a##SEL |= BIT##b;
+
+#define PULL_DOWN(a,b) \
+    P##a##DIR &= ~BIT##b;   \
+    P##a##REN |= BIT##b;   \
+    P##a##OUT &= ~BIT##b;   

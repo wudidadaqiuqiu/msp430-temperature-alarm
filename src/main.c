@@ -19,12 +19,15 @@
 volatile unsigned char DisBuffer[250*16];
 
 char number[10];
+char number2[10];
 uint32_t tem;
+uint32_t REF;
 uint8_t enable_change_mode = 0;
 uint8_t modes = 0;
 
-int calc_mode(int tem);
-float calc_fre(int tem);
+int calc_mode(int temm, int ref);
+// float calc_fre(int tem);
+float calc_fre(int tem, float ref);
 void initClock()
 {
 	 UCSCTL6 &= ~XT1OFF; //启动XT1
@@ -74,9 +77,12 @@ void IO_Init(void)
 
     // 按键
     // 上拉
-    PULL_UP_INT(2,1);
-    PULL_UP_INT(1,1);
+    PULL_UP_INT(2,3);
+    PULL_UP_INT(1,3);
     
+    // 6.1 in
+    PULL_DOWN(6, 3);
+
     // 7.4 L3 TB0.2
     PIN_OUT_SEL(7,4);
     
@@ -113,7 +119,7 @@ int main(void) {
     // P8DIR |= BIT1;
     // P8OUT &=~ BIT1;
     
-    ADInit(ADC12INCH_5);
+    ADInit(ADC12INCH_2);
     initClock();
 
     timer_init();
@@ -131,7 +137,7 @@ int main(void) {
     __enable_interrupt();
     // DIS_IMG(254);
 //    display("                        ", 42, 0,TimesNewRoman,size8,1,0);
-//   display(" Huatsing Instruments   ", 42, 16,TimesNewRoman,size8,1,1);
+//   display(" Huatsing Instruments   ", 42, 16,TimesNewRoman,size8,1,3);
 //    display("012abcABC",80, 0,TimesNewRoman,size16,0,0);
 //    display("012abcABC", 0,50,Arial,size8,1,0);
 //    display("012abcABC",80,50,Arial,size16,1,0);
@@ -167,17 +173,28 @@ __interrupt void Timer_A (void)
     static char str1[10];
     static char str2[10]; 
     static int M;
-    tem = get_temperature();
+    static int ccnt;
+    ccnt = (ccnt + 1) % 20;
+    
+    count_temperature(ccnt);
+    // tem = get_temperature();
+    if (ccnt == 19)
+        tem = get_temperature();
+    REF = get_ref();
 
-    if (tem > 2000) {
+
+    if (tem > REF) {
         PIN_HIGH(1,5);
-        DUTY = Period / 3 - Period / 3 * (float)(tem - 2000) / (float)(4095 - 2000);
+        DUTY = Period / 3 - Period / 3 * (float)(tem - REF) / (float)(4096 - REF);
+
+        
+        // DUTY = Period / 3 - Period / 3 * (float)(tem - tem) / (float)(4096 - tem);
         if (enable_change_mode) {
             DUTY = Period / 3 * (MODE_NUMBER - (float) modes) / (float) MODE_NUMBER;
 
             M = modes + 1;
         } else {
-            M = calc_mode(tem);
+            M = calc_mode(tem, REF);
         }
         buzzer_start();
     } else {
@@ -187,20 +204,22 @@ __interrupt void Timer_A (void)
         buzzer_stop();
     }
 
-    sprintf(number, "%-4d", tem);
-    display(number, XX, 16, TimesNewRoman, size8, 1, 0);
-    
-    sprintf(str1, "%-4d", enable_change_mode);
-    display(str1, XX, 16 + 16, TimesNewRoman, size8, 1, 0);
+    if (ccnt == 19) {
+        sprintf(number, "%-4d", tem);
+        sprintf(number2, "%-4d", REF);
+        display(number2, XX, 64, TimesNewRoman, size8, 1, 0);
+        display(number, XX, 16, TimesNewRoman, size8, 1, 0);
+        
+        sprintf(str1, "%-4d", enable_change_mode);
+        display(str1, XX, 16 + 16, TimesNewRoman, size8, 1, 0);
 
-    sprintf(str2, "%d", M);
-    display(str2, XX, 48, TimesNewRoman, size8, 1, 0);
-    
-
+        sprintf(str2, "%d", M);
+        display(str2, XX, 48, TimesNewRoman, size8, 1, 0);
+    }
     static int up = 0;
 
     static float r;
-    r = calc_fre(tem);
+    r = calc_fre(tem, REF);
     if (r < 1) {
         LED_DUTY = 0;
         return;
@@ -228,8 +247,8 @@ __interrupt void Timer_A (void)
 #pragma vector=PORT2_VECTOR
 __interrupt void Port_2(void)
 {
-    if(IS_PIN_LOW(2,1)){
-        INT_IN(2,1);
+    if(IS_PIN_LOW(2,3)){
+        INT_IN(2,3);
         enable_change_mode = !enable_change_mode;
 
     }
@@ -240,27 +259,29 @@ __interrupt void Port_2(void)
 #pragma vector=PORT1_VECTOR
 __interrupt void Port_1(void)
 {
-    if(IS_PIN_LOW(1,1)){
-        INT_IN(1,1);
+    if(IS_PIN_LOW(1,3)){
+        INT_IN(1,3);
         modes = (modes + 1) % MODE_NUMBER;
     }
 
 }
 
-int calc_mode(int tem) {
-    if (tem <= 2000) {
-        return 0; 
+int calc_mode(int tem, int ref) {
+    int step = (4095 - ref) / 3;
+    if (tem <= ref) {
+        return 0;
     }
-    if (tem < 2600) {
+    if (tem < ref + step) {
         return 1;
     }
-    if (tem < 3200) {
+    if (tem < ref + 2*step)
         return 2;
-    }
     return 3;
 }
 
-float calc_fre(int tem) {
-    if (tem <= 2000) return 0;
-    return 4 * (tem - 2000.0) / (4095 - 2000) + 1;
+float calc_fre(int tem, float ref) {
+    if (tem <= ref) return 0;
+    return 4 * (tem - ref) / (4095 - ref) + 1;
+    // if (tem <= 2000) return 0;
+    // return 4 * (tem - 2000.0) / (4095 - 2000) + 1;
 }
