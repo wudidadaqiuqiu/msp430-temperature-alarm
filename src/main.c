@@ -28,19 +28,22 @@ uint8_t modes = 0;
 int calc_mode(int temm, int ref);
 // float calc_fre(int tem);
 float calc_fre(int tem, float ref);
+
+float adc2tem(unsigned int t);
+void float2str(float a, char* s);
 void initClock()
 {
-	 UCSCTL6 &= ~XT1OFF; //Æô¶¯XT1
-	 P5SEL |= BIT2 + BIT3; //XT2Òý½Å¹¦ÄÜÑ¡Ôñ
-	 UCSCTL6 &= ~XT2OFF;          //´ò¿ªXT2
+	 UCSCTL6 &= ~XT1OFF; //ï¿½ï¿½ï¿½ï¿½XT1
+	 P5SEL |= BIT2 + BIT3; //XT2ï¿½ï¿½ï¿½Å¹ï¿½ï¿½ï¿½Ñ¡ï¿½ï¿½
+	 UCSCTL6 &= ~XT2OFF;          //ï¿½ï¿½XT2
 	 __bis_SR_register(SCG0);
 	 UCSCTL0 = DCO0+DCO1+DCO2+DCO3+DCO4;
-	 UCSCTL1 = DCORSEL_4;       //DCOÆµÂÊ·¶Î§ÔÚ28.2MHZÒÔÏÂ
-	 UCSCTL2 = FLLD_5 + 1;       //D=16£¬N=1
-	 UCSCTL3 = SELREF_5 + FLLREFDIV_3;    //n=8,FLLREFCLKÊ±ÖÓÔ´ÎªXT2CLK£»DCOCLK=D*(N+1)*(FLLREFCLK/n);DCOCLKDIV=(N+1)*(FLLREFCLK/n);
-	 UCSCTL4 = SELA_4 + SELS_3 +SELM_3;    //ACLKµÄÊ±ÖÓÔ´ÎªDCOCLKDIV,MCLK\SMCLKµÄÊ±ÖÓÔ´ÎªDCOCLK
-	 UCSCTL5 = DIVA_5 +DIVS_1;      //ACLKÓÉDCOCLKDIVµÄ32·ÖÆµµÃµ½£¬SMCLKÓÉDCOCLKµÄ2·ÖÆµµÃµ½
-	             //×îÖÕMCLK:16MHZ,SMCLK:8MHZ,ACLK:32KHZ
+	 UCSCTL1 = DCORSEL_4;       //DCOÆµï¿½Ê·ï¿½Î§ï¿½ï¿½28.2MHZï¿½ï¿½ï¿½ï¿½
+	 UCSCTL2 = FLLD_5 + 1;       //D=16ï¿½ï¿½N=1
+	 UCSCTL3 = SELREF_5 + FLLREFDIV_3;    //n=8,FLLREFCLKÊ±ï¿½ï¿½Ô´ÎªXT2CLKï¿½ï¿½DCOCLK=D*(N+1)*(FLLREFCLK/n);DCOCLKDIV=(N+1)*(FLLREFCLK/n);
+	 UCSCTL4 = SELA_4 + SELS_3 +SELM_3;    //ACLKï¿½ï¿½Ê±ï¿½ï¿½Ô´ÎªDCOCLKDIV,MCLK\SMCLKï¿½ï¿½Ê±ï¿½ï¿½Ô´ÎªDCOCLK
+	 UCSCTL5 = DIVA_5 +DIVS_1;      //ACLKï¿½ï¿½DCOCLKDIVï¿½ï¿½32ï¿½ï¿½Æµï¿½Ãµï¿½ï¿½ï¿½SMCLKï¿½ï¿½DCOCLKï¿½ï¿½2ï¿½ï¿½Æµï¿½Ãµï¿½
+	             //ï¿½ï¿½ï¿½ï¿½MCLK:16MHZ,SMCLK:8MHZ,ACLK:32KHZ
 
 //	 __bic_SR_register(SCG0);                   //Enable the FLL control loop
 
@@ -56,7 +59,7 @@ void timer_init()
     TA2CCR0 =Period;                    // PWM Period
     TA2CCTL1 = OUTMOD_7;                // CCR3 toggle/set
     TA2CCR1 = 0;                    // CCR3 PWM duty cycle  0
-    TA2CCTL0 = CCIE;                        //±È½ÏÆ÷ÖÐ¶ÏÊ¹ÄÜ
+    TA2CCTL0 = CCIE;                        //ï¿½È½ï¿½ï¿½ï¿½ï¿½Ð¶ï¿½Ê¹ï¿½ï¿½
 
     TB0CTL = MC_1 + TASSEL_2 + TACLR ;  // SMCLK(8M), up mode, clear TAR
     TB0CCR0 = Period;                    // PWM Period
@@ -75,8 +78,8 @@ void timer_init()
 void IO_Init(void)
 {
 
-    // °´¼ü
-    // ÉÏÀ­
+    // ï¿½ï¿½ï¿½ï¿½
+    // ï¿½ï¿½ï¿½ï¿½
     PULL_UP_INT(2,3);
     PULL_UP_INT(1,3);
     
@@ -89,7 +92,7 @@ void IO_Init(void)
     // 1.4 buzzer -> 3.6
     PIN_OUT_SEL(1,2);
 
-    //·çÉÈÇý¶¯
+    //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     P1DIR |= BIT5;
     P2DIR |= BIT4;
     P2DIR |= BIT5;
@@ -205,8 +208,14 @@ __interrupt void Timer_A (void)
     }
 
     if (ccnt == 19) {
-        sprintf(number, "%-4d", tem);
-        sprintf(number2, "%-4d", REF);
+        // sprintf(number, "%5.2f", adc2tem(tem));
+        // sprintf(number2, "%5.2f", adc2tem(REF));
+
+        // sprintf(number, "%-4d", (tem));
+        // sprintf(number2, "%-4d", (REF));
+        float2str(adc2tem(tem), number);
+        float2str(adc2tem(REF), number2);
+        
         display(number2, XX, 64, TimesNewRoman, size8, 1, 0);
         display(number, XX, 16, TimesNewRoman, size8, 1, 0);
         
@@ -216,6 +225,13 @@ __interrupt void Timer_A (void)
         sprintf(str2, "%d", M);
         display(str2, XX, 48, TimesNewRoman, size8, 1, 0);
     }
+
+    static int cnt;
+    cnt = (cnt + 1) % 16;
+    if (cnt == 0) {
+        buzzer_update();
+    }
+
     static int up = 0;
 
     static float r;
@@ -236,11 +252,7 @@ __interrupt void Timer_A (void)
         LED_DUTY += step * r;
     }
 
-    static int cnt;
-    cnt = (cnt + 1) % 16;
-    if (cnt == 0) {
-        buzzer_update();
-    }
+
 }
 
 
@@ -284,4 +296,15 @@ float calc_fre(int tem, float ref) {
     return 4 * (tem - ref) / (4095 - ref) + 1;
     // if (tem <= 2000) return 0;
     // return 4 * (tem - 2000.0) / (4095 - 2000) + 1;
+}
+
+float adc2tem(unsigned int t) {
+    return ((float)t - 2200.0) /100.0 + 28.0;
+}
+
+void float2str(float a, char* s) {
+    char d = '.';
+    uint16_t b = ((uint16_t)(a*100))  % 100;
+    uint16_t c = ((uint16_t)(a*100)) / 100;
+    sprintf(s, "%d%c%d", c, d, b);
 }
