@@ -80,7 +80,7 @@ void IO_Init(void)
 
     // ����
     // ����
-    PULL_UP_INT(2,3);
+    PULL_UP_INT(2,6);
     PULL_UP_INT(1,3);
     
     // 6.1 in
@@ -259,8 +259,8 @@ __interrupt void Timer_A (void)
 #pragma vector=PORT2_VECTOR
 __interrupt void Port_2(void)
 {
-    if(IS_PIN_LOW(2,3)){
-        INT_IN(2,3);
+    if(IS_PIN_LOW(2,6)){
+        INT_IN(2,6);
         enable_change_mode = !enable_change_mode;
 
     }
@@ -299,7 +299,7 @@ float calc_fre(int tem, float ref) {
 }
 
 float adc2tem(unsigned int t) {
-    return ((float)t - 2200.0) /100.0 + 28.0;
+    return ((float)t - 2200.0) /100.0 + 24.0;
 }
 
 void float2str(float a, char* s) {
