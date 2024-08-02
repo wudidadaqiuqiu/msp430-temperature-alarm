@@ -7,6 +7,8 @@
         "dev_config.h": "c",
         "adc.h": "c",
         "epd_2in9.h": "c",
-        "include.h": "c"
+        "include.h": "c",
+        "buzzer.h": "c",
+        "key.h": "c"
     }
 }

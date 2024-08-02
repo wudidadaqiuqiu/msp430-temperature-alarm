@@ -1,4 +1,4 @@
-
+#pragma once
 #define PULL_UP_INT(a, b) \
     P##a##DIR &= ~BIT##b;   \
     P##a##REN |= BIT##b;   \
